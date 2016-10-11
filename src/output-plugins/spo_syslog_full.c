@@ -1,5 +1,5 @@
 /*
-** 
+**
 ** Copyright (C) 2011-2012 Modified and enchanced for barnyard2 by the Barnyard2 Team.
 ** Copyright (C) 2011 Tim Shelton
 ** Copyright (C) 2011 HAWK Network Defense, Inc. hawkdefense.com
@@ -103,44 +103,44 @@ void OpSyslog_InitAlert(char *args)
     return;
 }
 
-/* 
+/*
  * init the output plugin, process any arguments, link the functions to
  * the output functional node
  */
 void OpSyslog_Init(char *args,u_int8_t context)
 {
     OpSyslog_Data *syslogContext;
-    
+
     if( args == NULL)
     {
 	/* For later use...
 	   ErrorMessage("OpSyslog_Init(): Invoked with NULL arguments....\n");
 	   return 1;
 	*/
-	
+
 	FatalError("OpSyslog_Init(): Invoked with NULL arguments....\n");
     }
-    
+
     if( (syslogContext = OpSyslog_ParseArgs(args)) == NULL)
     {
 	FatalError("OpSyslog_Init(): Error parsing output plugin arguments, bailing.\n");
     }
-    
+
     syslogContext->log_context = context;
 
     AddFuncToCleanExitList(OpSyslog_Exit,(void *)syslogContext);
     AddFuncToShutdownList(OpSyslog_Exit,(void *)syslogContext);
-    
+
     switch(syslogContext->log_context)
     {
-	
+
     case OUTPUT_TYPE_FLAG__LOG:
 	switch(syslogContext->operation_mode)
         {
 	case OUT_MODE_FULL:
             AddFuncToOutputList(OpSyslog_Log, OUTPUT_TYPE__LOG, (void *)syslogContext);
             break;
-	    
+
         case OUT_MODE_DEFAULT:
         default:
             LogMessage("[%s()]: OUTPUT_TYPE__LOG was selected but operation_mode is set to \"default\", using defaut logging hook \n",
@@ -149,91 +149,91 @@ void OpSyslog_Init(char *args,u_int8_t context)
             break;
         }
 	break;
-	
+
     case OUTPUT_TYPE_FLAG__ALERT:
 	AddFuncToOutputList(OpSyslog_Alert, OUTPUT_TYPE__ALERT, (void *)syslogContext);
 	break;
-	
+
     default:
 	FatalError("OpSyslog_Init(): Unknown operation mode...\n");
 	break;
     }
-    
+
     /* Since we are in init phase */
     syslogContext->socket = -1;
-    
-    if(NetConnect(syslogContext)) 
+
+    if(NetConnect(syslogContext))
     {
         FatalError("OpSyslog_Init(): Failed to connect to host: [%s] %s:%u\n",
-		   db_proto[syslogContext->proto], 
-		   syslogContext->server, 
+		   db_proto[syslogContext->proto],
+		   syslogContext->server,
 		   syslogContext->port);
         return;
     }
-    
+
     if( (syslogContext->payload = malloc(SYSLOG_MAX_QUERY_SIZE)) == NULL)
     {
 	FatalError("OpSyslog_Init(): Can't allocate payload memory, bailling \n");
     }
-    
+
     memset(syslogContext->payload,'\0',(SYSLOG_MAX_QUERY_SIZE));
-    
-    
+
+
     if( (syslogContext->formatBuffer = malloc(SYSLOG_MAX_QUERY_SIZE)) == NULL)
     {
 	FatalError("OpSyslog_Init(): Can't allocate payload memory, bailling \n");
     }
-    
+
     memset(syslogContext->formatBuffer,'\0',(SYSLOG_MAX_QUERY_SIZE));
-    
-    OpSyslog_LogConfig(syslogContext);    
-    
+
+    OpSyslog_LogConfig(syslogContext);
+
     return;
 }
 
 
-/* Inverse of the setup function, free memory allocated in Setup 
+/* Inverse of the setup function, free memory allocated in Setup
  * can't free the outputPlugin since it is also the list node itself
  */
 void OpSyslog_Exit(int signal,void *pSyslogContext)
 {
     OpSyslog_Data *iSyslogContext = NULL;
-    
+
     if( pSyslogContext == NULL)
     {
 	FatalError("OpSyslog_Exit(): Called with a NULL argument .... bailing \n");
     }
 
     iSyslogContext =(OpSyslog_Data *)pSyslogContext;
-    
+
     if(iSyslogContext->payload)
     {
 	free(iSyslogContext->payload);
 	iSyslogContext->payload = NULL;
     }
-    
+
     if(iSyslogContext->formatBuffer)
     {
 	free(iSyslogContext->formatBuffer);
 	iSyslogContext->formatBuffer = NULL;
     }
-    
+
     if(iSyslogContext->server)
     {
 	free(iSyslogContext->server);
 	iSyslogContext->server = NULL;
     }
-    
+
     if(iSyslogContext->sensor_name)
     {
 	free(iSyslogContext->sensor_name);
 	iSyslogContext->sensor_name = NULL;
     }
-    
+
     NetClose(iSyslogContext);
 
     free(iSyslogContext);
-    
+
     return;
 }
 
@@ -241,7 +241,7 @@ void OpSyslog_Exit(int signal,void *pSyslogContext)
 /* Used to concat current format to current the syslog payload message */
 int OpSyslog_Concat(OpSyslog_Data *syslogContext)
 {
-    
+
     if( (syslogContext == NULL) ||
 	(syslogContext->payload == NULL) ||
 	(syslogContext->formatBuffer == NULL))
@@ -249,13 +249,13 @@ int OpSyslog_Concat(OpSyslog_Data *syslogContext)
 	/* XXX */
 	return 1;
     }
-    
+
     if( (syslogContext->payload_current_pos + syslogContext->format_current_pos) >= SYSLOG_MAX_QUERY_SIZE)
     {
 	/* XXX */
 	return 1;
     }
-    
+
     switch(syslogContext->operation_mode)
     {
 
@@ -269,7 +269,7 @@ int OpSyslog_Concat(OpSyslog_Data *syslogContext)
 	    return 1;
 	}
 	break;
-	
+
     case OUT_MODE_FULL:
 	if( (syslogContext->payload_current_pos += snprintf((syslogContext->payload+syslogContext->payload_current_pos),
 							    (SYSLOG_MAX_QUERY_SIZE - syslogContext->payload_current_pos),
@@ -282,39 +282,39 @@ int OpSyslog_Concat(OpSyslog_Data *syslogContext)
 	    return 1;
 	}
 	break;
-	
+
     default:
 	break;
-	
+
     }
-    
+
     memset(syslogContext->formatBuffer,'\0',SYSLOG_MAX_QUERY_SIZE);
     syslogContext->format_current_pos = 0;
-    
+
     return 0;
 }
 
 int OpSyslog_LogConfig(void *pSyslogContext)
 {
     OpSyslog_Data *iSyslogContext = NULL;
-    
-    if( pSyslogContext == NULL) 
+
+    if( pSyslogContext == NULL)
     {
         return -1;
     }
-    
+
     iSyslogContext =(OpSyslog_Data *)pSyslogContext;
-    
+
     LogMessage("spo_syslog_full config:\n");
     LogMessage("\tDetail Level: %s\n",
 	       iSyslogContext->detail == 1 ? "Full" : "Fast");
-    
+
     if(iSyslogContext->local_logging == 0)
     {
 	LogMessage("\tSyslog Server: %s:%u\n",
-		   iSyslogContext->server, 
+		   iSyslogContext->server,
 		   iSyslogContext->port);
-	LogMessage("\tReporting Protocol: %s\n", 
+	LogMessage("\tReporting Protocol: %s\n",
 		   db_proto[iSyslogContext->proto]);
     }
     else if(iSyslogContext->local_logging == 1)
@@ -323,14 +323,14 @@ int OpSyslog_LogConfig(void *pSyslogContext)
 	LogMessage("\tConfigure syslog Facility : [%s] \n",iSyslogContext->syslog_tx_facility);
 	LogMessage("\tConfigure syslog Priority : [%s] \n",iSyslogContext->syslog_tx_priority);
     }
-    
+
 	return 0;
 }
 
 
 
 /* CHECKME: -elz seem to have been incomplete @ creation time ...investigate after port */
-/*int Syslog_FormatReference(OpSyslog_Data *data, ReferenceNode *refer) 
+/*int Syslog_FormatReference(OpSyslog_Data *data, ReferenceNode *refer)
 {
 ReferenceNode *cRef = NULL;
 
@@ -343,7 +343,7 @@ return 1;
 
 cRef = refer;
 
-while(cRef) 
+while(cRef)
 {
 LogMessage("System: %s ID:[%s] URL:%s\n", cRef->system->name,cRef->id, cRef->system->url);
 cRef = cRef->next;
@@ -353,26 +353,27 @@ return 0;
 }*/
 
 
-static int Syslog_FormatTrigger(OpSyslog_Data *syslogData, Unified2EventCommon *pEvent,int opType) 
+static int Syslog_FormatTrigger(OpSyslog_Data *syslogData, Unified2EventCommon *pEvent,int opType)
 {
-    
+
     char tSigBuf[256] = {0};
     char *timestamp_string = NULL;
-    
+		char *buf = NULL;
+
     SigNode             *sn = NULL;
     ClassType           *cn = NULL;
     //ReferenceNode       *rn = NULL;
-    
+
     if( (syslogData == NULL) ||
 	(pEvent == NULL))
     {
 	/* XXX */
 	return 1;
     }
-    
+
     switch(opType)
     {
-	
+
     case OUT_MODE_DEFAULT:
 	/* Alert */
 	if( (syslogData->format_current_pos += snprintf(syslogData->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"[SNORTIDS[ALERT]: [%s] ]", syslogData->sensor_name)) >=  SYSLOG_MAX_QUERY_SIZE)
@@ -389,22 +390,22 @@ static int Syslog_FormatTrigger(OpSyslog_Data *syslogData, Unified2EventCommon *
 	    return 1;
 	}
 	break;
-	
+
     default:
 	/* XXX */
 	LogMessage("Syslog_FormatTrigger(): Unknown [%d] operation mode \n",opType);
 	return 1;
 	break;
     }
-    
-    
+
+
     if( OpSyslog_Concat(syslogData))
     {
 	/* XXX */
 	FatalError("OpSyslog_Concat(): Failed \n");
     }
 
-    
+
     if( (timestamp_string = GetTimestampByComponent(
 	     ntohl(pEvent->event_second),
 	     ntohl(pEvent->event_microsecond),
@@ -417,48 +418,51 @@ static int Syslog_FormatTrigger(OpSyslog_Data *syslogData, Unified2EventCommon *
 	    /* XXX */
 	    return 1;
 	}
-	
+
 	memset(timestamp_string,'\0',256);
 	snprintf(timestamp_string,256,"sec:[%u] msec:[%u] Second away from UTC:[%u] ",
 		 ntohl(pEvent->event_second),
 		 ntohl(pEvent->event_microsecond),
 		 GetLocalTimezone());
     }
-    
-    
+
+
     snprintf(tSigBuf,256,"Snort Alert [%u:%u:%u]",
 	     ntohl(pEvent->generator_id),
 	     ntohl(pEvent->signature_id),
 	     ntohl(pEvent->signature_revision));
-    
+
     sn = GetSigByGidSid(ntohl(pEvent->generator_id),
 			ntohl(pEvent->signature_id),
 			ntohl(pEvent->signature_revision));
-    
-    cn = ClassTypeLookupById(barnyard2_conf, 
+
+    cn = ClassTypeLookupById(barnyard2_conf,
 			     ntohl(pEvent->classification_id));
-    
-    if( (syslogData->format_current_pos += snprintf(syslogData->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"%s%c%u%c[%u:%u:%u]%c%s", 
+
+    if( (syslogData->format_current_pos += snprintf(syslogData->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"%s%c%u%c[%u:%u:%u]%c%s",
 						    timestamp_string,syslogData->field_separators,
 						    ntohl(pEvent->priority_id),syslogData->field_separators,
 						    ntohl(pEvent->generator_id),ntohl(pEvent->signature_id),ntohl(pEvent->signature_revision),syslogData->field_separators,
 						    sn != NULL ? sn->msg : tSigBuf)) >=  SYSLOG_MAX_QUERY_SIZE)
     {
 	/* XXX */
+	if (timestamp_string)	{
 	free(timestamp_string);
-	return 1;
+	timestamp_string = NULL;
+   }
+		return 1;
     }
-    
+
 
     if( OpSyslog_Concat(syslogData))
     {
 	/* XXX */
 	FatalError("OpSyslog_Concat(): Failed \n");
     }
-    
+
     if(cn)
     {
-	if( (syslogData->format_current_pos += snprintf(syslogData->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"%s", 
+	if( (syslogData->format_current_pos += snprintf(syslogData->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"%s",
 							cn->type)) >= SYSLOG_MAX_QUERY_SIZE)
 	{
 	    /* XXX */
@@ -468,7 +472,7 @@ static int Syslog_FormatTrigger(OpSyslog_Data *syslogData, Unified2EventCommon *
     }
     else
     {
-	if( ( syslogData->format_current_pos += snprintf(syslogData->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"%s", 
+	if( ( syslogData->format_current_pos += snprintf(syslogData->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"%s",
 							 "[Unknown Classification]") >= SYSLOG_MAX_QUERY_SIZE))
 	{
 	    /* XXX */
@@ -476,29 +480,29 @@ static int Syslog_FormatTrigger(OpSyslog_Data *syslogData, Unified2EventCommon *
 	    return 1;
 	}
     }
-    
+
     if( OpSyslog_Concat(syslogData))
     {
 	/* XXX */
 	FatalError("OpSyslog_Concat(): Failed \n");
     }
-    
+
     /*CHECKME: -elz  Need to investigate */
     //Syslog_FormatReference(syslogData, sn->refs);
-    
+
     free(timestamp_string);
-    
+
     return 0;
 }
 
 
 
-static int Syslog_FormatIPHeaderAlert(OpSyslog_Data *data, Packet *p) 
+static int Syslog_FormatIPHeaderAlert(OpSyslog_Data *data, Packet *p)
 {
     char *p_ip = NULL;
     char s_ip[16] ={0};
     char d_ip[16] ={0};
-    
+
 
     if(data == NULL ||
        p == NULL)
@@ -506,17 +510,17 @@ static int Syslog_FormatIPHeaderAlert(OpSyslog_Data *data, Packet *p)
 	/* XXX */
 	return 1;
     }
-    
+
     if(p->iph)
     {
         p_ip = inet_ntoa(GET_SRC_ADDR(p));
 	memcpy(s_ip,p_ip,strlen(p_ip));
-	
+
 	p_ip = inet_ntoa(GET_DST_ADDR(p));
 	memcpy(d_ip,p_ip,strlen(p_ip));
-	
-	if( (data->format_current_pos += snprintf(data->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"%lu%c%s%c%s",   
-						  (u_long)p->iph->ip_proto,data->field_separators, 
+
+	if( (data->format_current_pos += snprintf(data->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"%lu%c%s%c%s",
+						  (u_long)p->iph->ip_proto,data->field_separators,
 						  s_ip,data->field_separators,
 						  d_ip)) >= SYSLOG_MAX_QUERY_SIZE)
 	{
@@ -524,14 +528,14 @@ static int Syslog_FormatIPHeaderAlert(OpSyslog_Data *data, Packet *p)
 	    return 1;
 	}
     }
-    
+
     return OpSyslog_Concat(data);
 }
 
-static int Syslog_FormatIPHeaderLog(OpSyslog_Data *data, Packet *p) 
+static int Syslog_FormatIPHeaderLog(OpSyslog_Data *data, Packet *p)
 {
 
-    //unsigned int s, d, 
+    //unsigned int s, d,
     unsigned int proto, ver, hlen, tos, len, id, off, ttl, csum;
     //s=d=...;
     proto=ver=hlen=tos=len=id=off=ttl=csum=0;
@@ -539,7 +543,7 @@ static int Syslog_FormatIPHeaderLog(OpSyslog_Data *data, Packet *p)
     char sip[16] = {0};
     char dip[16] = {0};
 
-    if(p->iph) 
+    if(p->iph)
     {
 	/*
 	  if(p->iph->ip_src.s_addr)
@@ -583,27 +587,27 @@ static int Syslog_FormatIPHeaderLog(OpSyslog_Data *data, Packet *p)
 	return 1;
     }
 
-    
+
     if( (data->format_current_pos += snprintf(data->formatBuffer,SYSLOG_MAX_QUERY_SIZE,
 					      "%u%c%s%c%s%c%u%c%u%c%u%c%u%c%u%c%u%c%u%c%u%c%u",
-					      proto,data->field_separators, 
-					      sip, data->field_separators, 
-                                              //s, data->field_separators, 
-					      dip, data->field_separators, 
-                                              //d, data->field_separators, 					      
-					      ver, data->field_separators, 
-					      hlen, data->field_separators, 
-					      tos, data->field_separators, 
-					      len, data->field_separators, 
-					      id, data->field_separators, 
+					      proto,data->field_separators,
+					      sip, data->field_separators,
+                                              //s, data->field_separators,
+					      dip, data->field_separators,
+                                              //d, data->field_separators,
+					      ver, data->field_separators,
+					      hlen, data->field_separators,
+					      tos, data->field_separators,
+					      len, data->field_separators,
+					      id, data->field_separators,
 #if defined(WORDS_BIGENDIAN)
-					      ((off & 0xE000) >> 13),data->field_separators, 
-					      htons(off & 0x1FFF),data->field_separators, 
+					      ((off & 0xE000) >> 13),data->field_separators,
+					      htons(off & 0x1FFF),data->field_separators,
 #else
-					      ((off & 0x00E0) >> 5),data->field_separators, 
-					      htons(off & 0xFF1F), data->field_separators, 
-#endif	     
-					      ttl,data->field_separators, 
+					      ((off & 0x00E0) >> 5),data->field_separators,
+					      htons(off & 0xFF1F), data->field_separators,
+#endif
+					      ttl,data->field_separators,
 					      csum)) >= SYSLOG_MAX_QUERY_SIZE)
     {
 	/* XXX */
@@ -614,43 +618,43 @@ static int Syslog_FormatIPHeaderLog(OpSyslog_Data *data, Packet *p)
 }
 
 
-static int Syslog_FormatTCPHeaderAlert(OpSyslog_Data *data, Packet *p) 
+static int Syslog_FormatTCPHeaderAlert(OpSyslog_Data *data, Packet *p)
 {
     if( (data == NULL) ||
-	(p == NULL) || 
+	(p == NULL) ||
 	(p->tcph == NULL))
     {
 	/* XXX */
 	return 1;
     }
-    
-    if( (data->format_current_pos += snprintf(data->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"%u%c%u", 
+
+    if( (data->format_current_pos += snprintf(data->formatBuffer,SYSLOG_MAX_QUERY_SIZE,"%u%c%u",
 					      ntohs(p->tcph->th_sport),data->field_separators,
 					      ntohs(p->tcph->th_dport))) > SYSLOG_MAX_QUERY_SIZE)
     {
 	/* XXX */
 	return 1;
     }
-    
+
     return OpSyslog_Concat(data);
 }
 
-static int Syslog_FormatTCPHeaderLog(OpSyslog_Data *data, Packet *p) 
+static int Syslog_FormatTCPHeaderLog(OpSyslog_Data *data, Packet *p)
 {
-    
+
     unsigned int th_win, th_sum, th_flags, th_ack, th_seq, th_urp, th_off, th_x2;
-    
+
     th_win=th_sum=th_flags=th_ack=th_seq=th_urp=th_off=th_x2=0;
-    
+
     if( (data == NULL) ||
-	(p == NULL) || 
+	(p == NULL) ||
 	(p->tcph == NULL))
     {
 	/* XXX */
 	return 1;
     }
-    
-    if(p->tcph) 
+
+    if(p->tcph)
     {
 	if(p->tcph->th_seq)
 	    th_seq = ntohl(p->tcph->th_seq);
@@ -669,53 +673,53 @@ static int Syslog_FormatTCPHeaderLog(OpSyslog_Data *data, Packet *p)
 	if(p->tcph->th_urp)
 	    th_urp = ntohs(p->tcph->th_urp);
     }
-    
+
     if( (data->format_current_pos += snprintf(data->formatBuffer,SYSLOG_MAX_QUERY_SIZE,
-					       "%u%c%u%c%u%c%u%c%u%c%u%c%u%c%u%c%u%c%u", 
-					       p->sp,data->field_separators,  
-					       p->dp, data->field_separators, 
-					       th_seq, data->field_separators, 
-					       th_ack, data->field_separators, 
-					       th_off, data->field_separators, 
-					       th_x2, data->field_separators, 
-					       th_flags, data->field_separators, 
-					       th_win, data->field_separators, 
-					       th_sum, data->field_separators, 
+					       "%u%c%u%c%u%c%u%c%u%c%u%c%u%c%u%c%u%c%u",
+					       p->sp,data->field_separators,
+					       p->dp, data->field_separators,
+					       th_seq, data->field_separators,
+					       th_ack, data->field_separators,
+					       th_off, data->field_separators,
+					       th_x2, data->field_separators,
+					       th_flags, data->field_separators,
+					       th_win, data->field_separators,
+					       th_sum, data->field_separators,
 					       th_urp)) > SYSLOG_MAX_QUERY_SIZE)
     {
 	/* XXX */
 	return 1;
     }
-    
+
     return OpSyslog_Concat(data);
 }
 
 
-static int Syslog_FormatUDPHeaderAlert(OpSyslog_Data *data, Packet *p) 
+static int Syslog_FormatUDPHeaderAlert(OpSyslog_Data *data, Packet *p)
 {
-    
+
     if( (data == NULL) ||
-	(p == NULL) || 
+	(p == NULL) ||
 	(p->udph == NULL))
     {
 	/* XXX */
 	return 1;
     }
-    
-    
+
+
     if( (data->format_current_pos += snprintf(data->formatBuffer,SYSLOG_MAX_QUERY_SIZE,
-					      "%u%c%u", 
-					      ntohs(p->udph->uh_sport),data->field_separators,  
+					      "%u%c%u",
+					      ntohs(p->udph->uh_sport),data->field_separators,
 					      ntohs(p->udph->uh_dport)) >= SYSLOG_MAX_QUERY_SIZE))
     {
 	/* XXX */
 	return 1;
     }
-    
+
     return OpSyslog_Concat(data);;
 }
 
-static int Syslog_FormatUDPHeaderLog(OpSyslog_Data *data, Packet *p) 
+static int Syslog_FormatUDPHeaderLog(OpSyslog_Data *data, Packet *p)
 {
     unsigned int uh_len=0, uh_chk=0;
 
@@ -727,30 +731,30 @@ static int Syslog_FormatUDPHeaderLog(OpSyslog_Data *data, Packet *p)
         return 1;
     }
 
-    if(p->udph) 
+    if(p->udph)
     {
 	if(p->udph->uh_len)
 	    uh_len =  ntohs(p->udph->uh_len);
 	if(p->udph->uh_chk)
 	    uh_chk =  ntohs(p->udph->uh_chk);
     }
-    
+
     if( (data->format_current_pos +=  snprintf(data->formatBuffer,SYSLOG_MAX_QUERY_SIZE,
 					       "%u%c%u%c%u%c%u",
-					       ntohs(p->udph->uh_sport),data->field_separators, 
-					       ntohs(p->udph->uh_dport),data->field_separators, 
-					       uh_len, data->field_separators, 
+					       ntohs(p->udph->uh_sport),data->field_separators,
+					       ntohs(p->udph->uh_dport),data->field_separators,
+					       uh_len, data->field_separators,
 					       uh_chk)) >= SYSLOG_MAX_QUERY_SIZE)
     {
 	/* XXX */
 	return 1;
     }
-    
+
     return OpSyslog_Concat(data);
 }
 
 /* Not Complete */
-static int Syslog_FormatICMPHeaderAlert(OpSyslog_Data *data, Packet *p) 
+static int Syslog_FormatICMPHeaderAlert(OpSyslog_Data *data, Packet *p)
 {
     if( (data == NULL) ||
         (p == NULL) ||
@@ -759,25 +763,25 @@ static int Syslog_FormatICMPHeaderAlert(OpSyslog_Data *data, Packet *p)
         /* XXX */
         return 1;
     }
-    
+
     if( (data->format_current_pos +=  snprintf(data->formatBuffer,SYSLOG_MAX_QUERY_SIZE,
 					       "%u%c%u",
-					       p->icmph->type,data->field_separators, 
+					       p->icmph->type,data->field_separators,
 					       p->icmph->code)) >= SYSLOG_MAX_QUERY_SIZE)
     {
 	/* XXX */
 	return 1;
     }
-    
+
     return OpSyslog_Concat(data);
 }
 
-static int Syslog_FormatICMPHeaderLog(OpSyslog_Data *data, Packet *p) 
+static int Syslog_FormatICMPHeaderLog(OpSyslog_Data *data, Packet *p)
 {
-    
+
     unsigned int type, code, csum, id, seq;
     type=code=csum=id=seq=0;
-    
+
     if( (data == NULL) ||
         (p == NULL) ||
         (p->icmph == NULL))
@@ -785,55 +789,55 @@ static int Syslog_FormatICMPHeaderLog(OpSyslog_Data *data, Packet *p)
         /* XXX */
         return 1;
     }
-    
+
     type = p->icmph->type;
-    code = p->icmph->code;    
+    code = p->icmph->code;
     csum = ntohs(p->icmph->csum);
-	    
+
     if(type == 0 || type == 8 ||
        type == 13 || type == 14 ||
        type == 15 || type == 16)
     {
-	
+
 	id =  htons(p->icmph->icmp_hun.idseq.id);
 	seq = htons(p->icmph->icmp_hun.idseq.seq);
-	
-	
-    } 
-    
+
+
+    }
+
     if( (data->format_current_pos +=  snprintf(data->formatBuffer, SYSLOG_MAX_QUERY_SIZE,
-					       "%u%c%u%c%u%c%u%c%u",  
-					       type,data->field_separators, 
-					       code,data->field_separators, 
-					       csum,data->field_separators, 
-					       id,data->field_separators, 
+					       "%u%c%u%c%u%c%u%c%u",
+					       type,data->field_separators,
+					       code,data->field_separators,
+					       csum,data->field_separators,
+					       id,data->field_separators,
 					       seq)) >= SYSLOG_MAX_QUERY_SIZE)
     {
 	/* XXX */
 	return 1;
     }
-    
+
     return OpSyslog_Concat(data);
 }
 
 int Syslog_FormatPayload(OpSyslog_Data *data, Packet *p) {
-    
+
     if( (data == NULL) ||
         (p == NULL) ||
 	(p->pkt == NULL))
-	
+
     {
         /* XXX */
         return 1;
     }
-    
+
     if(p->pkth->caplen > 0)
     {
 	memset(data->payload_escape_buffer,'\0',MAX_QUERY_LENGTH);
 
 	switch(data->payload_encoding)
 	{
-	    
+
 	case ENCODE_HEX:
 	    if( (fasthex_STATIC(p->pkt, p->pkth->caplen,
 				data->payload_escape_buffer)))
@@ -842,7 +846,7 @@ int Syslog_FormatPayload(OpSyslog_Data *data, Packet *p) {
 		return 1;
 	    }
 	    break;
-	    
+
 	case ENCODE_ASCII:
 	    if( (ascii_STATIC(p->pkt,p->pkth->caplen,
 			      data->payload_escape_buffer)))
@@ -867,34 +871,34 @@ int Syslog_FormatPayload(OpSyslog_Data *data, Packet *p) {
 		       data->payload_encoding);
 	    break;
 	}
-	
+
 	if( (data->format_current_pos +=  snprintf(data->formatBuffer, SYSLOG_MAX_QUERY_SIZE,
 						   "%u%c%s",
-						   p->pkth->caplen,data->field_separators, 
+						   p->pkth->caplen,data->field_separators,
 						   data->payload_escape_buffer)) >= SYSLOG_MAX_QUERY_SIZE)
 	{
 	    /* XXX */
 	    return 1;
 	}
-	
+
     }
-    
+
     return OpSyslog_Concat(data);
 }
 
 
 void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 {
-    OpSyslog_Data *syslogContext = NULL;    
+    OpSyslog_Data *syslogContext = NULL;
     Unified2EventCommon *iEvent = NULL;
 
     SigNode                         *sn = NULL;
     ClassType                       *cn = NULL;
 
-    
+
     char sip[16] = {0};
     char dip[16] = {0};
-    
+
     if( (p == NULL) ||
 	(event == NULL) ||
 	(arg == NULL))
@@ -906,39 +910,39 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 		   arg);
 	return;
     }
-    
+
     if(event_type != UNIFIED2_IDS_EVENT)
     {
         LogMessage("OpSyslog_Alert(): Is currently unable to handle Event Type [%u] \n",
                    event_type);
 	return;
     }
-    
-    
+
+
     syslogContext = (OpSyslog_Data *)arg;
     iEvent = event;
-    
+
     memset(syslogContext->payload,'\0',(SYSLOG_MAX_QUERY_SIZE));
     memset(syslogContext->formatBuffer,'\0',(SYSLOG_MAX_QUERY_SIZE));
     syslogContext->payload_current_pos = 0;
     syslogContext->format_current_pos = 0;
 
-    
+
     switch(syslogContext->operation_mode)
     {
 
-    case OUT_MODE_DEFAULT:  
-	
+    case OUT_MODE_DEFAULT:
+
 	if(IPH_IS_VALID(p))
-	{	
+	{
 	    if (strlcpy(sip, inet_ntoa(GET_SRC_ADDR(p)), sizeof(sip)) >= sizeof(sip))
 	    {
 		FatalError("[%s()], strlcpy() error , bailing \n",
 			   __FUNCTION__);
 		return;
 	    }
-	    
-	    
+
+
 	    if (strlcpy(dip, inet_ntoa(GET_DST_ADDR(p)), sizeof(dip)) >= sizeof(dip))
 	    {
 		FatalError("[%s()], strlcpy() error , bailing \n",
@@ -946,14 +950,14 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 		return;
 	    }
 	}
-	
+
 	sn = GetSigByGidSid(ntohl(iEvent->generator_id),
 			    ntohl(iEvent->signature_id),
 			    ntohl(iEvent->signature_revision));
-	
+
 	cn = ClassTypeLookupById(barnyard2_conf,
 				 ntohl(iEvent->classification_id));
-	
+
 	if( (syslogContext->format_current_pos += snprintf(syslogContext->formatBuffer,SYSLOG_MAX_QUERY_SIZE,
 							   "[%u:%u:%u] ",
 							   ntohl(iEvent->generator_id),
@@ -964,13 +968,13 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 	    FatalError("[%s()], failed call to snprintf \n",
 		       __FUNCTION__);
 	}
-	
+
 	if( OpSyslog_Concat(syslogContext))
         {
             /* XXX */
             FatalError("OpSyslog_Concat(): Failed \n");
         }
-	
+
 	if(sn != NULL)
 	{
 	    if( (syslogContext->format_current_pos += snprintf(syslogContext->formatBuffer,SYSLOG_MAX_QUERY_SIZE,
@@ -991,9 +995,9 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
                 FatalError("[%s()], failed call to snprintf \n",
                            __FUNCTION__);
             }
-	    
+
 	}
-	
+
 	if( OpSyslog_Concat(syslogContext))
         {
             /* XXX */
@@ -1001,7 +1005,7 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
         }
 
 
-	
+
 	if(cn != NULL)
         {
             if( cn->name )
@@ -1015,7 +1019,7 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 		    FatalError("[%s()], failed call to snprintf \n",
 			       __FUNCTION__);
 		}
-		
+
             }
         }
         else if( ntohl(((Unified2EventCommon *)event)->priority_id) != 0 )
@@ -1029,15 +1033,15 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 			   __FUNCTION__);
 	    }
         }
-	
+
 	if( OpSyslog_Concat(syslogContext))
         {
             /* XXX */
             FatalError("OpSyslog_Concat(): Failed \n");
-        }	
-	
-	
-	if( (IPH_IS_VALID(p)) &&	
+        }
+
+
+	if( (IPH_IS_VALID(p)) &&
 	    (((GET_IPH_PROTO(p) != IPPROTO_TCP &&
 	       GET_IPH_PROTO(p) != IPPROTO_UDP &&
 	       GET_IPH_PROTO(p) != IPPROTO_ICMP) ||
@@ -1062,7 +1066,7 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 	    {
 		if(protocol_names[GET_IPH_PROTO(p)])
 		{
-		    
+
 		    if( (syslogContext->format_current_pos += snprintf(syslogContext->formatBuffer,SYSLOG_MAX_QUERY_SIZE,
 								       " <%s> {%s} %s -> %s",
 								       barnyard2_conf->interface,
@@ -1072,7 +1076,7 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 			/* XXX */
 			FatalError("[%s()], failed call to snprintf \n",
 				   __FUNCTION__);
-		    
+
 		    }
 		}
 	    }
@@ -1111,8 +1115,8 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 		}
 	    }
 	}
-	
-	
+
+
 	if( OpSyslog_Concat(syslogContext))
 	{
 	    /* XXX */
@@ -1120,25 +1124,25 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 	}
 
 	break;
-	
+
     case OUT_MODE_FULL: /* Ze verbose */
-	
-	if(Syslog_FormatTrigger(syslogContext, iEvent,0) ) 
+
+	if(Syslog_FormatTrigger(syslogContext, iEvent,0) )
 	{
 	    LogMessage("WARNING: Unable to append Trigger header.\n");
 	    return;
 	}
-	
+
 	/* Support for portscan ip */
 	if(p->iph)
 	{
-	    if(Syslog_FormatIPHeaderAlert(syslogContext, p) ) 
+	    if(Syslog_FormatIPHeaderAlert(syslogContext, p) )
 	    {
 		LogMessage("WARNING: Unable to append Trigger header.\n");
 		return;
 	    }
-	}	
-	
+	}
+
 	if(p->iph)
 	{
 	    /* build the protocol specific header information */
@@ -1155,7 +1159,7 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 		break;
 	    }
 	}
-	
+
 	/* CHECKME: -elz will update formating later on .. */
 	if( (syslogContext->format_current_pos += snprintf(syslogContext->formatBuffer,SYSLOG_MAX_QUERY_SIZE,
 							   "\n")) >= SYSLOG_MAX_QUERY_SIZE)
@@ -1163,22 +1167,22 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 	    /* XXX */
 	    FatalError("Couldn't finalize payload string ....\n");
 	}
-	
+
 	if( OpSyslog_Concat(syslogContext))
 	{
 	    /* XXX */
 	    FatalError("OpSyslog_Concat(): Failed \n");
 	}
-	
+
 	break;
-	
+
     default:
 	FatalError("[%s()]: Unknown operation_mode ... bailing \n",
 		   __FUNCTION__);
 	break;
     }
-    
-    if(NetSend(syslogContext)) 
+
+    if(NetSend(syslogContext))
     {
 	NetClose(syslogContext);
 	if(syslogContext->local_logging != 1)
@@ -1186,17 +1190,17 @@ void  OpSyslog_Alert(Packet *p, void *event, uint32_t event_type, void *arg)
 	    FatalError("NetSend(): call failed for host:port '%s:%u' bailing...\n", syslogContext->server, syslogContext->port);
 	}
     }
-    
+
 
     return;
 }
 
 void OpSyslog_Log(Packet *p, void *event, uint32_t event_type, void *arg)
 {
-    
+
     OpSyslog_Data *syslogContext = NULL;
     Unified2EventCommon *iEvent = NULL;
-    
+
     if( (p == NULL) ||
         (event == NULL) ||
         (arg == NULL))
@@ -1208,7 +1212,7 @@ void OpSyslog_Log(Packet *p, void *event, uint32_t event_type, void *arg)
                    arg);
         return;
     }
-    
+
     if(event_type != UNIFIED2_IDS_EVENT)
     {
 	LogMessage("OpSyslog_Log(): Is currently unable to handle Event Type [%u] \n",
@@ -1222,17 +1226,17 @@ void OpSyslog_Log(Packet *p, void *event, uint32_t event_type, void *arg)
     memset(syslogContext->formatBuffer,'\0',(SYSLOG_MAX_QUERY_SIZE));
     syslogContext->payload_current_pos = 0;
     syslogContext->format_current_pos = 0;
-    
-    if(Syslog_FormatTrigger(syslogContext, iEvent,1) ) 
+
+    if(Syslog_FormatTrigger(syslogContext, iEvent,1) )
     {
 	FatalError("WARNING: Unable to append Trigger header.\n");
     }
-    
+
     if(p->iph)
     {
 	Syslog_FormatIPHeaderLog(syslogContext, p);
     }
-    
+
     if(p->iph)
     {
 	switch(p->iph->ip_proto)
@@ -1248,9 +1252,9 @@ void OpSyslog_Log(Packet *p, void *event, uint32_t event_type, void *arg)
 	    break;
 	}
     }
-    
-    Syslog_FormatPayload(syslogContext, p);    
-    
+
+    Syslog_FormatPayload(syslogContext, p);
+
     /* CHECKME: -elz will update formating later on .. */
     if( (syslogContext->format_current_pos += snprintf(syslogContext->formatBuffer,SYSLOG_MAX_QUERY_SIZE,
                                                        "\n")) >= SYSLOG_MAX_QUERY_SIZE)
@@ -1258,22 +1262,22 @@ void OpSyslog_Log(Packet *p, void *event, uint32_t event_type, void *arg)
         /* XXX */
         FatalError("Couldn't finalize payload string ....\n");
     }
-    
+
     if( OpSyslog_Concat(syslogContext))
     {
         /* XXX */
         FatalError("OpSyslog_Concat(): Failed \n");
     }
-    
-    if(NetSend(syslogContext)) 
+
+    if(NetSend(syslogContext))
     {
 	NetClose(syslogContext);
 	//Reliability...
 	FatalError("WARNING: Unable to connect to our syslog host: '%s:%u'\n", syslogContext->server, syslogContext->port);
-	
+
 	return;
     }
-    
+
     return;
 }
 
@@ -1281,7 +1285,7 @@ void OpSyslog_Log(Packet *p, void *event, uint32_t event_type, void *arg)
 OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 {
     OpSyslog_Data *op_data = NULL;
-    
+
     op_data = (OpSyslog_Data *)SnortAlloc(sizeof(OpSyslog_Data));
 
     if(args != NULL)
@@ -1297,10 +1301,10 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
             char **stoks;
             int num_stoks;
             char *index = toks[i];
-            
+
 	    while(isspace((int)*index))
                 ++index;
-	    
+
 	    stoks = mSplit(index, " ", 2, &num_stoks, 0);
 
             if(strcasecmp("port", stoks[0]) == 0)
@@ -1308,7 +1312,7 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
                 if(num_stoks > 1 )
                     op_data->port = strtoul(stoks[1], NULL, 0);
                 else
-                    LogMessage("Argument Error in %s(%i): %s\n", file_name, 
+                    LogMessage("Argument Error in %s(%i): %s\n", file_name,
                             file_line, index);
             }
             else if(strcasecmp("server", stoks[0]) == 0)
@@ -1316,7 +1320,7 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
                 if(num_stoks > 1 && !op_data->server )
                     op_data->server = strdup(stoks[1]);
                 else
-                    LogMessage("Argument Error in %s(%i): %s\n", file_name, 
+                    LogMessage("Argument Error in %s(%i): %s\n", file_name,
                             file_line, index);
             }
             else if(strcasecmp("sensor_name", stoks[0]) == 0)
@@ -1336,8 +1340,8 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 		    else
 			op_data->proto = 1;
                 }
-                else 
-                    LogMessage("Argument Error in %s(%i): %s\n", file_name, 
+                else
+                    LogMessage("Argument Error in %s(%i): %s\n", file_name,
                             file_line, index);
             }
             else if(strcasecmp("detail", stoks[0]) == 0)
@@ -1347,22 +1351,22 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
                     if(strcasecmp("full", stoks[1]) == 0)
                         op_data->detail = 1;
                 }
-                else 
-                    LogMessage("Argument Error in %s(%i): %s\n", file_name, 
+                else
+                    LogMessage("Argument Error in %s(%i): %s\n", file_name,
                             file_line, index);
             }
 	    else if(strcasecmp("delimiters", stoks[0]) == 0)
             {
 		if(num_stoks >= 1)
                 {
-		    if( (strlen(stoks[1]) > 3) || 
+		    if( (strlen(stoks[1]) > 3) ||
 			(strlen(stoks[1]) < 3))
 		    {
 			LogMessage("Invalid delimiters configured [%s], default will be used \n",stoks[1]);
 		    }
 		    else
 		    {
-			if(stoks[1][0] == '"' && 
+			if(stoks[1][0] == '"' &&
 			   stoks[1][2] == '"')
 			{
 			    op_data->delim = stoks[1][1];
@@ -1373,7 +1377,7 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 			}
 		    }
 		}
-		
+
 	    }
 	    else if(strcasecmp("separators", stoks[0]) == 0)
 	    {
@@ -1382,12 +1386,12 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 		    if( (strlen(stoks[1]) > 3) ||
 			(strlen(stoks[1]) < 3))
 		    {
-			
+
 			LogMessage("Invalid field separator configured [%s], default will be used \n",stoks[1]);
 		    }
 		    else
 		    {
-			if(stoks[1][0] == '"' && 
+			if(stoks[1][0] == '"' &&
 			   stoks[1][2] == '"')
 			{
 			    op_data->field_separators = stoks[1][1];
@@ -1396,7 +1400,7 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 			{
 			    LogMessage("Invalid field separator configured [%s], default will be used. \n",stoks[1]);
 			}
-		    }		   
+		    }
 		}
 	    }
 	    else if(strcasecmp("operation_mode", stoks[0]) == 0)
@@ -1420,7 +1424,7 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 		{
 		    LogMessage("Invalid operation_mode defined, will use default mode \n");
 		}
-		
+
 	    }
 	    else if(strcasecmp("payload_encoding", stoks[0]) == 0)
             {
@@ -1548,7 +1552,7 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 		    {
 			op_data->syslog_priority |= LOG_LOCAL7;
 			snprintf(op_data->syslog_tx_facility,16,"%s","LOG_LOCAL7");
-			
+
 		    }
 		    else if(!strcasecmp("LOG_USER", stoks[1]))
 		    {
@@ -1570,7 +1574,7 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 		    LogMessage("No default log_facility defined, using LOG_USER as default \n");
 		    op_data->syslog_priority |= LOG_USER;
 		}
-		
+
 	    }
 	    else if(strcasecmp("log_priority", stoks[0]) == 0)
 	    {
@@ -1634,15 +1638,15 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
             {
                 fprintf(stderr, "WARNING %s (%d) => Unrecognized argument for "
                         "SyslogFull plugin: %s\n", file_name, file_line, index);
-            }	
+            }
 
 	    mSplitFree(&stoks,num_stoks);
 	}
 	/* free your mSplit tokens */
 	mSplitFree(&toks, num_toks);
     }
-	
-    /* Default */    
+
+    /* Default */
     if(op_data->sensor_name == NULL)
     {
 	FatalError("You must specify a sensor name\n");
@@ -1655,7 +1659,7 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 	snprintf(op_data->syslog_tx_priority,16,"%s","LOG_INFO");
     }
 
-    
+
     if(op_data->local_logging == 1)
     {
 	LogMessage("Local logging enabled, WILL NOT send information to a remote syslog \n");
@@ -1668,14 +1672,14 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 	    LogMessage("Using default Syslog port [%u] \n",op_data->port);
 	    op_data->port = 514;
 	}
-	
-	if( op_data->server == NULL) 
+
+	if( op_data->server == NULL)
 	{
 	    FatalError("You must specify a valid server \n");
 	}
-	
+
     }
-    
+
     if(op_data->operation_mode == 0)
     {
 	LogMessage("using operation_mode: default \n");
@@ -1683,7 +1687,7 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
     else if(op_data->operation_mode == 1)
     {
 	LogMessage("using operation_mode: complete \n");
-	
+
 	if(op_data->delim == 0)
 	{
 	    LogMessage("Using default delimiters for syslog messages \"|\"\n");
@@ -1693,7 +1697,7 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 	{
 	    LogMessage("Using \"%c\" as delimiters for syslog messages \n",op_data->delim);
 	}
-	
+
 	if(op_data->field_separators == 0)
 	{
 	    LogMessage("Using default field separators for syslog messages \" \"\n");
@@ -1709,40 +1713,40 @@ OpSyslog_Data *OpSyslog_ParseArgs(char *args)
 	LogMessage("Defaulting operation_mode to default. \n");
 	op_data->operation_mode = 0;
     }
-	
-    
+
+
     return op_data;
 }
 
 
-int UDPConnect(OpSyslog_Data *op_data) 
+int UDPConnect(OpSyslog_Data *op_data)
 {
-    
+
     if( (op_data == NULL))
     {
 	/* XXX */
 	return 1;
     }
-    
+
     if(op_data->socket != -1 )
     {
 	return 0;
     }
-    
+
     if( (op_data->socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
 	perror("Socket()");
 	return 1;
     }
-    
+
     return 0;
 }
 
 
-int TCPConnect(OpSyslog_Data *op_data) 
+int TCPConnect(OpSyslog_Data *op_data)
 {
     int option=1;
-    
+
     if(op_data == NULL)
     {
 	/* XXX */
@@ -1755,7 +1759,7 @@ int TCPConnect(OpSyslog_Data *op_data)
 	LogMessage("Failed to create our socket");
 	return 1;
     }
-    
+
     /* CHECKME: -elz Really needed....? */
     if( (setsockopt(op_data->socket,IPPROTO_TCP,TCP_NODELAY,  (char *)&option, sizeof(option))) < 0 )
     {
@@ -1764,7 +1768,7 @@ int TCPConnect(OpSyslog_Data *op_data)
 	op_data->socket = -1;
 	return 1;
     }
-    
+
     if( connect(op_data->socket,(struct sockaddr *)&op_data->sockaddr, sizeof(op_data->sockaddr)) != 0 )
     {
 	perror("connect()");
@@ -1773,7 +1777,7 @@ int TCPConnect(OpSyslog_Data *op_data)
 	return 1;
     }
 
-    
+
     return 0;
 }
 
@@ -1784,7 +1788,7 @@ int NetConnect(OpSyslog_Data *op_data)
 	/* XXX */
 	return 1;
     }
-    
+
     if(op_data->local_logging == 1)
     {
 	return 0;
@@ -1799,25 +1803,25 @@ int NetConnect(OpSyslog_Data *op_data)
 	}
     }
 
-    
+
     /* Set socket information */
-    
-    if (inet_aton(op_data->server,&op_data->sockaddr.sin_addr) != 1) 
+
+    if (inet_aton(op_data->server,&op_data->sockaddr.sin_addr) != 1)
     {
-	if ((op_data->hostPtr = gethostbyname(op_data->server)) == NULL) 
+	if ((op_data->hostPtr = gethostbyname(op_data->server)) == NULL)
 	{
 	    FatalError("could not resolve address[%s]",op_data->server);
 	}
-	
+
 	memcpy(&op_data->sockaddr.sin_addr,op_data->hostPtr->h_addr,sizeof(op_data->sockaddr.sin_addr));
     }
-    
+
 
     op_data->sockaddr.sin_port = htons(op_data->port);
     op_data->sockaddr.sin_family = AF_INET;
 
 
-    
+
     switch(op_data->proto)
     {
     case LOG_UDP:
@@ -1831,7 +1835,7 @@ int NetConnect(OpSyslog_Data *op_data)
 	return 1;
 	break;
     }
-    
+
     /* XXX */
     /* Should never be reached */
     return 1;
@@ -1841,7 +1845,7 @@ int NetConnect(OpSyslog_Data *op_data)
 int NetClose(OpSyslog_Data *op_data)
 {
     int rval = 0;
-    
+
     if(op_data ==NULL)
     {
 	/* XXX */
@@ -1859,7 +1863,7 @@ int NetClose(OpSyslog_Data *op_data)
 	rval = close(op_data->socket);
 	op_data->socket = -1;
     }
-    
+
     return rval;
 }
 
@@ -1874,7 +1878,7 @@ int NetTestSocket(OpSyslog_Data *op_data)
 	/* XXX */
 	return 1;
     }
-    
+
     if(op_data->local_logging == 1)
     {
 	/* We skip */
@@ -1888,11 +1892,11 @@ int NetTestSocket(OpSyslog_Data *op_data)
 	perror("NetTestSocket():");
 	return 1;
     }
-    
+
     return 0;
 }
 
-int NetSend(OpSyslog_Data *op_data) 
+int NetSend(OpSyslog_Data *op_data)
 {
 
     int sendSize = 0;
@@ -1903,7 +1907,7 @@ int NetSend(OpSyslog_Data *op_data)
 	/* XXX */
 	return 1;
     }
-    
+
     if(NetTestSocket(op_data))
     {
 	if( NetConnect(op_data))
@@ -1914,9 +1918,9 @@ int NetSend(OpSyslog_Data *op_data)
 		       op_data->port);
 	}
     }
-    
+
     sendSize=strlen(op_data->payload);
-    
+
     if(op_data->local_logging == 1)
     {
 	syslog(op_data->syslog_priority,
@@ -1924,14 +1928,14 @@ int NetSend(OpSyslog_Data *op_data)
 	       op_data->payload);
 	return 0;
     }
-    
 
-    switch(op_data->proto) 
+
+    switch(op_data->proto)
     {
-	
-    case LOG_UDP: 
+
+    case LOG_UDP:
 	/* UDP */
-	if(sendto(op_data->socket,op_data->payload, strlen(op_data->payload)+1, 0 , (struct sockaddr *)&op_data->sockaddr, sizeof(struct sockaddr)) <= 0) 
+	if(sendto(op_data->socket,op_data->payload, strlen(op_data->payload)+1, 0 , (struct sockaddr *)&op_data->sockaddr, sizeof(struct sockaddr)) <= 0)
 	{
 	    /* XXX */
 	    close(op_data->socket);
@@ -1939,12 +1943,12 @@ int NetSend(OpSyslog_Data *op_data)
 	    return 1;
 	}
 	break;
-	
-    case LOG_TCP: 
-	/* TCP */ 
-	
+
+    case LOG_TCP:
+	/* TCP */
+
 	sendRetVal = send(op_data->socket, op_data->payload, strlen(op_data->payload)+1,0);
-	
+
 	if((sendRetVal < sendSize) ||
 	   (sendRetVal < 0) )
 	{
@@ -1955,13 +1959,12 @@ int NetSend(OpSyslog_Data *op_data)
 	    return 1;
 	}
 	break;
-	
+
     default:
 	/* XXX */
 	return 1;
 	break;
     }
-    
+
     return 0;
 }
-
